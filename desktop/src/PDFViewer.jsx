@@ -2,13 +2,16 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, X } from 'lucide-react';
 
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.js?url';
 
 // Set worker source
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
+import 'pdfjs-dist/web/pdf_viewer.css';
+
 const PDFViewer = ({ fileUrl, query, onClose }) => {
     const canvasRef = useRef(null);
+    const textLayerRef = useRef(null);
     const [pdfDoc, setPdfDoc] = useState(null);
     const [pageNum, setPageNum] = useState(1);
     const [scale, setScale] = useState(1.0);
@@ -56,9 +59,26 @@ const PDFViewer = ({ fileUrl, query, onClose }) => {
 
                 await page.render(renderContext).promise;
 
+                // Text Layer for selection
+                const textLayerDiv = textLayerRef.current;
+                if (textLayerDiv) {
+                    textLayerDiv.innerHTML = '';
+                    textLayerDiv.style.height = viewport.height + 'px';
+                    textLayerDiv.style.width = viewport.width + 'px';
+                    textLayerDiv.style.setProperty('--scale-factor', scale);
+
+                    const textContent = await page.getTextContent();
+                    pdfjsLib.renderTextLayer({
+                        textContentSource: textContent,
+                        container: textLayerDiv,
+                        viewport: viewport,
+                        textDivs: []
+                    });
+                }
+
                 // Highlighting Logic
                 if (query) {
-                    const textContent = await page.getTextContent();
+                    const textContent = await page.getTextContent(); // Cached internally by pdfjs usually
                     const queryLower = query.toLowerCase();
 
                     context.fillStyle = 'rgba(255, 255, 0, 0.4)'; // Semi-transparent yellow
@@ -66,18 +86,11 @@ const PDFViewer = ({ fileUrl, query, onClose }) => {
                     textContent.items.forEach(item => {
                         if (item.str.toLowerCase().includes(queryLower)) {
                             const tx = item.transform;
-                            // PDF coordinates: [scaleX, skewY, skewX, scaleY, x, y]
-                            // We need to construct a rect [x, y, x + width, y + height]
-                            // Note: height is usually derived from font size (tx[0] or tx[3])
-
                             const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
                             const width = item.width;
                             const x = tx[4];
                             const y = tx[5];
 
-                            // Convert to viewport coordinates
-                            // Note: PDF coordinates usually have (0,0) at bottom-left
-                            // viewport.convertToViewportRectangle handles the transform
                             const rect = viewport.convertToViewportRectangle([
                                 x,
                                 y,
@@ -85,17 +98,11 @@ const PDFViewer = ({ fileUrl, query, onClose }) => {
                                 y + fontHeight
                             ]);
 
-                            // rect is [minX, minY, maxX, maxY] in canvas coords
-                            // However, convertToViewportRectangle returns [x1, y1, x2, y2]
-                            // We need to normalize it for fillRect
                             const minX = Math.min(rect[0], rect[2]);
                             const maxX = Math.max(rect[0], rect[2]);
                             const minY = Math.min(rect[1], rect[3]);
                             const maxY = Math.max(rect[1], rect[3]);
 
-                            // Adjust for baseline if needed, but usually the rect covers the text
-                            // We might need to shift y slightly if the highlight is too low/high
-                            // For now, let's draw the computed rect
                             context.fillRect(minX, minY, maxX - minX, maxY - minY);
                         }
                     });
@@ -161,7 +168,7 @@ const PDFViewer = ({ fileUrl, query, onClose }) => {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-auto bg-slate-100 flex p-4 relative">
+                <div className="flex-1 overflow-auto bg-slate-100 flex p-4 relative justify-center">
                     {loading && (
                         <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10">
                             <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
@@ -176,10 +183,13 @@ const PDFViewer = ({ fileUrl, query, onClose }) => {
                         </div>
                     )}
 
-                    <canvas
-                        ref={canvasRef}
-                        className="shadow-lg bg-white m-auto block"
-                    />
+                    <div className="relative shadow-lg bg-white">
+                        <canvas
+                            ref={canvasRef}
+                            className="block"
+                        />
+                        <div ref={textLayerRef} className="textLayer" />
+                    </div>
                 </div>
 
                 {/* Footer Controls */}
