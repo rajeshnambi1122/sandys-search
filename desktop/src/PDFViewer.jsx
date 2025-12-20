@@ -9,11 +9,11 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 import 'pdfjs-dist/web/pdf_viewer.css';
 
-const PDFViewer = ({ fileUrl, query, onClose }) => {
+const PDFViewer = ({ fileUrl, query, initialPage = 1, onClose }) => {
     const canvasRef = useRef(null);
     const textLayerRef = useRef(null);
     const [pdfDoc, setPdfDoc] = useState(null);
-    const [pageNum, setPageNum] = useState(1);
+    const [pageNum, setPageNum] = useState(initialPage);
     const [scale, setScale] = useState(1.0);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

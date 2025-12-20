@@ -11,6 +11,7 @@ function App() {
   const [error, setError] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedPage, setSelectedPage] = useState(1);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -136,6 +137,7 @@ function App() {
                       const normalizedPath = result.path.replace(/\\/g, '/');
                       const urlPath = normalizedPath.split('/').map(encodeURIComponent).join('/');
                       setSelectedFile(`http://localhost:5002/files/${urlPath}`);
+                      setSelectedPage(result.matchPage || 1);
                     }}
                     className="group relative bg-white rounded-xl p-5 shadow-sm ring-1 ring-slate-900/5 hover:shadow-lg hover:ring-primary/30 transition-all duration-200 cursor-pointer border-l-4 border-transparent hover:border-primary"
                   >
@@ -193,6 +195,7 @@ function App() {
             <PDFViewer
               fileUrl={selectedFile}
               query={query}
+              initialPage={selectedPage}
               onClose={() => setSelectedFile(null)}
             />
           </motion.div>

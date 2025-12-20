@@ -107,6 +107,7 @@ app.post('/api/search', async (req, res) => {
 
                         // Generate Peep
                         let peep = null;
+                        let matchPage = 1; // Default to page 1
                         try {
                             const { createCanvas, Canvas, Image } = require('canvas');
                             global.Canvas = global.Canvas || Canvas;
@@ -152,9 +153,9 @@ app.post('/api/search', async (req, res) => {
                                 let matchRecs = [];
 
                                 for (const item of textContent.items) {
-                                    // log(`[PEEP] Checking item: "${item.str}"`);
+                                    // log(`[PEEP] Checking item: \"${item.str}\"`);
                                     if (item.str.toLowerCase().includes(query.toLowerCase())) {
-                                        log(`[PEEP] Match found in item: "${item.str}"`);
+                                        log(`[PEEP] Match found in item: \"${item.str}\"`);
                                         const tx = item.transform;
                                         const x = tx[4];
                                         const y = tx[5];
@@ -174,6 +175,8 @@ app.post('/api/search', async (req, res) => {
                                 }
 
                                 if (matchRecs.length > 0) {
+                                    matchPage = i; // Store the page number where match was found
+
                                     // Render Page to Canvas
                                     const canvas = createCanvas(viewport.width, viewport.height);
                                     const context = canvas.getContext('2d');
@@ -221,7 +224,8 @@ app.post('/api/search', async (req, res) => {
                             path: `${dir.key}/${relativePath}`,
                             date: stats.mtime.toISOString(),
                             snippet: snippet,
-                            peep: peep
+                            peep: peep,
+                            matchPage: matchPage
                         });
                         log(`[MATCH] Found "${query}" in ${dir.key}/${relativePath}`);
                     }
