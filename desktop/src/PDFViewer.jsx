@@ -9,7 +9,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 import 'pdfjs-dist/web/pdf_viewer.css';
 
-const PDFViewer = ({ fileUrl, query, initialPage = 1, onClose }) => {
+const PDFViewer = ({ fileUrl, query, initialPage = 1, matchPages = [], onClose }) => {
     const canvasRef = useRef(null);
     const textLayerRef = useRef(null);
     const [pdfDoc, setPdfDoc] = useState(null);
@@ -127,14 +127,33 @@ const PDFViewer = ({ fileUrl, query, initialPage = 1, onClose }) => {
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-2 border-b border-slate-200 bg-slate-50 shrink-0">
-                    <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex items-center gap-4 min-w-0 flex-1">
                         <h3 className="font-semibold text-slate-900 truncate text-sm">
-                            {fileUrl.split('/').pop()}
+                            {decodeURIComponent(fileUrl.split('/').pop())}
                         </h3>
                         {pdfDoc && (
                             <span className="text-xs text-slate-500 shrink-0">
                                 Page {pageNum} of {pdfDoc.numPages}
                             </span>
+                        )}
+                        {matchPages.length > 0 && (
+                            <div className="flex items-center gap-2 shrink-0">
+                                <span className="text-xs text-slate-600 font-medium">Matches on:</span>
+                                <div className="flex gap-1">
+                                    {matchPages.map((page) => (
+                                        <button
+                                            key={page}
+                                            onClick={() => setPageNum(page)}
+                                            className={`px-2 py-0.5 text-xs rounded transition-colors ${pageNum === page
+                                                ? 'bg-primary text-white font-bold'
+                                                : 'bg-orange-100 text-orange-800 hover:bg-orange-200 border border-orange-300'
+                                                }`}
+                                        >
+                                            {page}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -147,7 +166,7 @@ const PDFViewer = ({ fileUrl, query, initialPage = 1, onClose }) => {
                                 <ZoomOut className="w-3.5 h-3.5" />
                             </button>
                             <span className="px-1.5 text-xs font-medium text-slate-600 w-10 text-center">
-                                {Math.round(scale * 100)}%
+                                {Math.round(scale * 100)}
                             </span>
                             <button
                                 onClick={() => setScale(s => Math.min(3, s + 0.25))}

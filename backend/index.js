@@ -105,9 +105,9 @@ app.post('/api/search', async (req, res) => {
                         const stats = fs.statSync(filePath);
 
 
-                        // Generate Peep
+                        // Generate Peep and track all matching pages
                         let peep = null;
-                        let matchPage = 1; // Default to page 1
+                        let matchPages = []; // Track all pages with matches
                         try {
                             const { createCanvas, Canvas, Image } = require('canvas');
                             global.Canvas = global.Canvas || Canvas;
@@ -145,6 +145,7 @@ app.post('/api/search', async (req, res) => {
 
                             log(`[PEEP] PDF loaded. Pages: ${pdfDocument.numPages}`);
 
+                            let peepGenerated = false;
                             for (let i = 1; i <= pdfDocument.numPages; i++) {
                                 const page = await pdfDocument.getPage(i);
                                 const textContent = await page.getTextContent();
@@ -175,37 +176,40 @@ app.post('/api/search', async (req, res) => {
                                 }
 
                                 if (matchRecs.length > 0) {
-                                    matchPage = i; // Store the page number where match was found
+                                    matchPages.push(i); // Add this page to the list
 
-                                    // Render Page to Canvas
-                                    const canvas = createCanvas(viewport.width, viewport.height);
-                                    const context = canvas.getContext('2d');
+                                    // Only generate peep for the first match
+                                    if (!peepGenerated) {
+                                        // Render Page to Canvas
+                                        const canvas = createCanvas(viewport.width, viewport.height);
+                                        const context = canvas.getContext('2d');
 
-                                    await page.render({
-                                        canvasContext: context,
-                                        viewport: viewport,
-                                        canvasFactory: canvasFactory
-                                    }).promise;
+                                        await page.render({
+                                            canvasContext: context,
+                                            viewport: viewport,
+                                            canvasFactory: canvasFactory
+                                        }).promise;
 
-                                    // Draw Highlights
-                                    context.fillStyle = 'rgba(255, 215, 0, 0.4)'; // Gold highlight
-                                    matchRecs.forEach(r => context.fillRect(r.x, r.y, r.w, r.h));
+                                        // Draw Highlights
+                                        context.fillStyle = 'rgba(255, 215, 0, 0.4)'; // Gold highlight
+                                        matchRecs.forEach(r => context.fillRect(r.x, r.y, r.w, r.h));
 
-                                    // Crop around the first match
-                                    const mainMatch = matchRecs[0];
-                                    const pad = 100;
-                                    const cropX = Math.max(0, mainMatch.x - pad);
-                                    const cropY = Math.max(0, mainMatch.y - pad / 2);
-                                    const cropW = Math.min(viewport.width - cropX, mainMatch.w + pad * 2);
-                                    const cropH = Math.min(viewport.height - cropY, mainMatch.h + pad);
+                                        // Crop around the first match
+                                        const mainMatch = matchRecs[0];
+                                        const pad = 100;
+                                        const cropX = Math.max(0, mainMatch.x - pad);
+                                        const cropY = Math.max(0, mainMatch.y - pad / 2);
+                                        const cropW = Math.min(viewport.width - cropX, mainMatch.w + pad * 2);
+                                        const cropH = Math.min(viewport.height - cropY, mainMatch.h + pad);
 
-                                    const cropCanvas = createCanvas(cropW, cropH);
-                                    const cropCtx = cropCanvas.getContext('2d');
-                                    cropCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+                                        const cropCanvas = createCanvas(cropW, cropH);
+                                        const cropCtx = cropCanvas.getContext('2d');
+                                        cropCtx.drawImage(canvas, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
-                                    peep = cropCanvas.toDataURL('image/png');
-                                    log(`[PEEP] Generated peep for ${path.basename(filePath)}`);
-                                    break;
+                                        peep = cropCanvas.toDataURL('image/png');
+                                        peepGenerated = true;
+                                        log(`[PEEP] Generated peep for ${path.basename(filePath)}`);
+                                    }
                                 }
                             }
                         } catch (e) {
@@ -225,7 +229,9 @@ app.post('/api/search', async (req, res) => {
                             date: stats.mtime.toISOString(),
                             snippet: snippet,
                             peep: peep,
-                            matchPage: matchPage
+                            matchPage: matchPages[0] || 1,
+                            matchPages: matchPages,
+                            pageCount: matchPages.length
                         });
                         log(`[MATCH] Found "${query}" in ${dir.key}/${relativePath}`);
                     }

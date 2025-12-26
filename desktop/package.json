@@ -1,7 +1,7 @@
 {
-  "name": "sandys-search",
+  "name": "sandys-invoice-search",
   "version": "1.0.0",
-  "description": "Desktop client for Sandy's Search",
+  "description": "Desktop client for Sandy's Invoice Search",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -41,7 +41,7 @@
   },
   "build": {
     "appId": "com.searchpdf.desktop",
-    "productName": "Sandy's Search",
+    "productName": "Sandy's Invoice Search",
     "directories": {
       "output": "release"
     },

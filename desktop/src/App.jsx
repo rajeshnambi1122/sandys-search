@@ -12,6 +12,7 @@ function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedPage, setSelectedPage] = useState(1);
+  const [selectedMatchPages, setSelectedMatchPages] = useState([]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -138,6 +139,7 @@ function App() {
                       const urlPath = normalizedPath.split('/').map(encodeURIComponent).join('/');
                       setSelectedFile(`http://localhost:5002/files/${urlPath}`);
                       setSelectedPage(result.matchPage || 1);
+                      setSelectedMatchPages(result.matchPages || []);
                     }}
                     className="group relative bg-white rounded-xl p-5 shadow-sm ring-1 ring-slate-900/5 hover:shadow-lg hover:ring-primary/30 transition-all duration-200 cursor-pointer border-l-4 border-transparent hover:border-primary"
                   >
@@ -168,6 +170,11 @@ function App() {
                           <span className="text-sm text-slate-500">
                             Modified: {new Date(result.date).toLocaleDateString()}
                           </span>
+                          {result.pageCount > 2 && (
+                            <span className="inline-flex items-center rounded-md bg-orange-100 px-2 py-1 text-xs font-medium text-orange-800 border border-orange-200">
+                              Found on {result.pageCount} pages
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="self-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -196,6 +203,7 @@ function App() {
               fileUrl={selectedFile}
               query={query}
               initialPage={selectedPage}
+              matchPages={selectedMatchPages}
               onClose={() => setSelectedFile(null)}
             />
           </motion.div>
