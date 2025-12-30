@@ -63,6 +63,101 @@ const getAllFiles = (dirPath, arrayOfFiles) => {
     return arrayOfFiles;
 }
 
+// Fuzzy matching helper - normalizes text for flexible matching
+const normalizeText = (text) => {
+    return text
+        .toLowerCase()
+        .replace(/&/g, 'and')  // Convert & to "and" before removing special chars
+        .replace(/[^\w]/g, '') // Remove ALL special characters AND spaces, keep only alphanumeric
+        .trim();
+};
+
+// Calculate Levenshtein distance (edit distance) between two strings
+const levenshteinDistance = (str1, str2) => {
+    const matrix = [];
+    
+    for (let i = 0; i <= str2.length; i++) {
+        matrix[i] = [i];
+    }
+    
+    for (let j = 0; j <= str1.length; j++) {
+        matrix[0][j] = j;
+    }
+    
+    for (let i = 1; i <= str2.length; i++) {
+        for (let j = 1; j <= str1.length; j++) {
+            if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+                matrix[i][j] = matrix[i - 1][j - 1];
+            } else {
+                matrix[i][j] = Math.min(
+                    matrix[i - 1][j - 1] + 1, // substitution
+                    matrix[i][j - 1] + 1,     // insertion
+                    matrix[i - 1][j] + 1      // deletion
+                );
+            }
+        }
+    }
+    
+    return matrix[str2.length][str1.length];
+};
+
+// Find fuzzy match with typo tolerance
+const findFuzzyMatch = (text, query) => {
+    const normalizedText = normalizeText(text);
+    const normalizedQuery = normalizeText(query);
+    
+    // First try exact match (fast path)
+    const exactMatch = normalizedText.indexOf(normalizedQuery);
+    if (exactMatch !== -1) {
+        log(`[FUZZY] Exact match found at position: ${exactMatch}`);
+        return mapToOriginalPosition(text, normalizedText, exactMatch);
+    }
+    
+    // No exact match, try fuzzy matching with sliding window
+    const queryLen = normalizedQuery.length;
+    const threshold = Math.floor(queryLen * 0.2); // Allow 20% error rate (1 typo per 5 chars)
+    
+    let bestMatch = -1;
+    let bestDistance = Infinity;
+    
+    // Slide through the text looking for similar substrings
+    for (let i = 0; i <= normalizedText.length - queryLen; i++) {
+        const substring = normalizedText.substring(i, i + queryLen);
+        const distance = levenshteinDistance(normalizedQuery, substring);
+        
+        if (distance <= threshold && distance < bestDistance) {
+            bestDistance = distance;
+            bestMatch = i;
+        }
+    }
+    
+    if (bestMatch !== -1) {
+        log(`[FUZZY] Fuzzy match found at position ${bestMatch} with distance ${bestDistance}`);
+        return mapToOriginalPosition(text, normalizedText, bestMatch);
+    }
+    
+    log(`[FUZZY] No match found`);
+    return -1;
+};
+
+// Map normalized text position back to original text position
+const mapToOriginalPosition = (originalText, normalizedText, normalizedPos) => {
+    let normPos = 0;
+    let origPos = 0;
+    
+    while (normPos < normalizedPos && origPos < originalText.length) {
+        const char = originalText[origPos];
+        const normalizedChar = normalizeText(char);
+        
+        if (normalizedChar.length > 0) {
+            normPos++;
+        }
+        origPos++;
+    }
+    
+    return origPos;
+};
+
 app.post('/api/search', async (req, res) => {
     const { query } = req.body;
 
@@ -94,11 +189,8 @@ app.post('/api/search', async (req, res) => {
                     const data = await pdf(dataBuffer);
                     fileText = data.text;
 
-
-
-                    const lowerFileText = fileText.toLowerCase();
-                    const lowerQuery = query.toLowerCase();
-                    const matchIndex = lowerFileText.indexOf(lowerQuery);
+                    // Use fuzzy matching
+                    const matchIndex = findFuzzyMatch(fileText, query);
 
                     if (matchIndex !== -1) {
                         const relativePath = path.relative(dir.path, filePath).replace(/\\/g, '/');
@@ -154,8 +246,37 @@ app.post('/api/search', async (req, res) => {
                                 let matchRecs = [];
 
                                 for (const item of textContent.items) {
-                                    // log(`[PEEP] Checking item: \"${item.str}\"`);
-                                    if (item.str.toLowerCase().includes(query.toLowerCase())) {
+                                    // Use fuzzy matching for peep generation too
+                                    const normalizedItem = normalizeText(item.str);
+                                    const normalizedQuery = normalizeText(query);
+                                    
+                                    // Check for exact match or fuzzy match
+                                    let isMatch = normalizedItem.includes(normalizedQuery);
+                                    
+                                    // If no exact match, try fuzzy matching with typo tolerance
+                                    if (!isMatch && normalizedItem.length > 0 && normalizedQuery.length > 0) {
+                                        const threshold = Math.floor(normalizedQuery.length * 0.2);
+                                        
+                                        // Check if the entire item matches the query (for single-word items)
+                                        if (Math.abs(normalizedItem.length - normalizedQuery.length) <= threshold) {
+                                            const distance = levenshteinDistance(normalizedQuery, normalizedItem);
+                                            if (distance <= threshold) {
+                                                isMatch = true;
+                                            }
+                                        } else {
+                                            // Check if query is a substring with fuzzy matching
+                                            for (let pos = 0; pos <= normalizedItem.length - normalizedQuery.length; pos++) {
+                                                const substring = normalizedItem.substring(pos, pos + normalizedQuery.length);
+                                                const distance = levenshteinDistance(normalizedQuery, substring);
+                                                if (distance <= threshold) {
+                                                    isMatch = true;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (isMatch) {
                                         log(`[PEEP] Match found in item: \"${item.str}\"`);
                                         const tx = item.transform;
                                         const x = tx[4];
